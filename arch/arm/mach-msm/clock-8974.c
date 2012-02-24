@@ -20,7 +20,6 @@
 #include <linux/clk.h>
 #include <linux/iopoll.h>
 
-#include <mach/clk.h>
 #include <mach/rpm-regulator-smd.h>
 #include <mach/socinfo.h>
 #include <mach/rpm-smd.h>
@@ -29,6 +28,7 @@
 #include "clock-pll.h"
 #include "clock-rpm.h"
 #include "clock-voter.h"
+#include "clock.h"
 
 enum {
 	GCC_BASE,
