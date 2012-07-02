@@ -278,6 +278,10 @@ struct msm_cam_media_controller {
 	uint32_t ping_imem_cbcr;
 	uint32_t pong_imem_y;
 	uint32_t pong_imem_cbcr;
+
+	/*IOMMU domain for this session*/
+	int domain_num;
+	struct iommu_domain *domain;
 };
 
 /* abstract camera device represents a VFE and connected sensor */
