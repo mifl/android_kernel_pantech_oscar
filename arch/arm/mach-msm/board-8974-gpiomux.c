@@ -60,6 +60,12 @@ static struct gpiomux_setting gpio_i2c_config = {
 	.pull = GPIOMUX_PULL_NONE,
 };
 
+static struct gpiomux_setting taiko_reset = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_6MA,
+	.pull = GPIOMUX_PULL_NONE,
+	.dir = GPIOMUX_OUT_LOW,
+};
 
 static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 #if defined(CONFIG_KS8851) || defined(CONFIG_KS8851_MODULE)
@@ -114,6 +120,15 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 	},
 };
 
+static struct msm_gpiomux_config msm_taiko_config[] __initdata = {
+	{
+		.gpio	= 63,		/* SYS_RST_N */
+		.settings = {
+			[GPIOMUX_SUSPENDED] = &taiko_reset,
+		},
+	}
+};
+
 void __init msm_8974_init_gpiomux(void)
 {
 	int rc;
@@ -128,4 +143,6 @@ void __init msm_8974_init_gpiomux(void)
 	msm_gpiomux_install(msm_eth_configs, ARRAY_SIZE(msm_eth_configs));
 #endif
 	msm_gpiomux_install(msm_blsp_configs, ARRAY_SIZE(msm_blsp_configs));
+
+	msm_gpiomux_install(msm_taiko_config, ARRAY_SIZE(msm_taiko_config));
 }
