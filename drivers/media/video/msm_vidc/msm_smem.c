@@ -23,7 +23,7 @@ struct smem_client {
 static int get_device_address(struct ion_client *clnt,
 		struct ion_handle *hndl, int domain_num, int partition_num,
 		unsigned long align, unsigned long *iova,
-		unsigned long *buffer_size,	unsigned long flags)
+		unsigned long *buffer_size)
 {
 	int rc;
 	if (!iova || !buffer_size || !hndl || !clnt) {
@@ -36,7 +36,7 @@ static int get_device_address(struct ion_client *clnt,
 	pr_debug("\n In %s  domain: %d, Partition: %d\n",
 		__func__, domain_num, partition_num);
 	rc = ion_map_iommu(clnt, hndl, domain_num, partition_num, align,
-			0, iova, buffer_size, flags, 0);
+			0, iova, buffer_size, 0, 0);
 	if (rc)
 		pr_err("ion_map_iommu failed(%d).domain: %d,partition: %d\n",
 				rc, domain_num, partition_num);
@@ -55,7 +55,6 @@ static int ion_user_to_kernel(struct smem_client *client,
 			struct msm_smem *mem)
 {
 	struct ion_handle *hndl;
-	unsigned long ionflag;
 	unsigned long iova = 0;
 	unsigned long buffer_size = 0;
 	int rc = 0;
@@ -66,16 +65,11 @@ static int ion_user_to_kernel(struct smem_client *client,
 		rc = -ENOMEM;
 		goto fail_import_fd;
 	}
-	rc = ion_handle_get_flags(client->clnt, hndl, &ionflag);
-	if (rc) {
-		pr_err("Failed to get ion flags: %d", rc);
-		goto fail_map;
-	}
 	mem->kvaddr = NULL;
 	mem->domain = domain;
 	mem->partition_num = partition;
 	rc = get_device_address(client->clnt, hndl, mem->domain,
-		mem->partition_num, 4096, &iova, &buffer_size, ionflag);
+		mem->partition_num, 4096, &iova, &buffer_size);
 	if (rc) {
 		pr_err("Failed to get device address: %d\n", rc);
 		goto fail_device_address;
@@ -90,7 +84,6 @@ static int ion_user_to_kernel(struct smem_client *client,
 	return rc;
 fail_device_address:
 	ion_unmap_kernel(client->clnt, hndl);
-fail_map:
 	ion_free(client->clnt, hndl);
 fail_import_fd:
 	return rc;
@@ -139,7 +132,7 @@ static int alloc_ion_mem(struct smem_client *client, size_t size,
 		mem->kvaddr = NULL;
 
 	rc = get_device_address(client->clnt, hndl, mem->domain,
-		mem->partition_num, align, &iova, &buffer_size, UNCACHED);
+		mem->partition_num, align, &iova, &buffer_size);
 	if (rc) {
 		pr_err("Failed to get device address: %d\n", rc);
 		goto fail_device_address;
