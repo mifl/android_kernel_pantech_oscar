@@ -82,6 +82,7 @@ static struct snd_soc_jack hs_jack;
 static struct snd_soc_jack button_jack;
 
 static struct mutex cdc_mclk_mutex;
+static atomic_t auxpcm_rsc_ref;
 
 static void msm_enable_ext_spk_amp_gpio(u32 spk_amp_gpio)
 {
@@ -583,8 +584,10 @@ static int msm_auxpcm_startup(struct snd_pcm_substream *substream)
 {
 	int ret = 0;
 
-	pr_debug("%s(): substream = %s\n", __func__, substream->name);
-	ret = msm_aux_pcm_get_gpios();
+	pr_debug("%s(): substream = %s, auxpcm_rsc_ref counter = %d\n",
+		__func__, substream->name, atomic_read(&auxpcm_rsc_ref));
+	if (atomic_inc_return(&auxpcm_rsc_ref) == 1)
+		ret = msm_aux_pcm_get_gpios();
 	if (ret < 0) {
 		pr_err("%s: Aux PCM GPIO request failed\n", __func__);
 		return -EINVAL;
@@ -595,8 +598,10 @@ static int msm_auxpcm_startup(struct snd_pcm_substream *substream)
 static void msm_auxpcm_shutdown(struct snd_pcm_substream *substream)
 {
 
-	pr_debug("%s(): substream = %s\n", __func__, substream->name);
-	msm_aux_pcm_free_gpios();
+	pr_debug("%s(): substream = %s, auxpcm_rsc_ref counter = %d\n",
+		__func__, substream->name, atomic_read(&auxpcm_rsc_ref));
+	if (atomic_dec_return(&auxpcm_rsc_ref) == 0)
+		msm_aux_pcm_free_gpios();
 }
 static struct snd_soc_ops msm_auxpcm_be_ops = {
 	.startup = msm_auxpcm_startup,
@@ -924,6 +929,7 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AUXPCM_TX,
 		.be_hw_params_fixup = msm_auxpcm_be_params_fixup,
+		.ops = &msm_auxpcm_be_ops,
 	},
 	/* Backend DAI Links */
 	{
@@ -991,6 +997,8 @@ static int __init msm_audio_init(void)
 		platform_device_put(msm_snd_device);
 		return ret;
 	}
+	atomic_set(&auxpcm_rsc_ref, 0);
+
 	return ret;
 
 }
