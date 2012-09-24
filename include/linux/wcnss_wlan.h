@@ -26,6 +26,7 @@ struct wcnss_wlan_config {
 };
 
 #define WCNSS_WLAN_IRQ_INVALID -1
+#define HAVE_WCNSS_RESET_INTR 1
 
 struct device *wcnss_wlan_get_device(void);
 struct resource *wcnss_wlan_get_memory_map(struct device *dev);
@@ -50,6 +51,7 @@ unsigned int wcnss_get_serial_number(void);
 void wcnss_flush_delayed_boot_votes(void);
 void wcnss_allow_suspend(void);
 void wcnss_prevent_suspend(void);
+void wcnss_reset_intr(void);
 void *wcnss_prealloc_get(unsigned int size);
 int wcnss_prealloc_put(void *ptr);
 

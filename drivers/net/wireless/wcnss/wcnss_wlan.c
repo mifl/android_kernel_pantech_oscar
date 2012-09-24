@@ -25,6 +25,7 @@
 #include <linux/delay.h>
 #include <mach/peripheral-loader.h>
 #include <mach/msm_smd.h>
+#include <mach/msm_iomap.h>
 #ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
 #include "wcnss_prealloc.h"
 #endif
@@ -155,6 +156,14 @@ static ssize_t wcnss_version_show(struct device *dev,
 
 static DEVICE_ATTR(wcnss_version, S_IRUSR,
 		wcnss_version_show, NULL);
+
+/* interface to reset Riva by sending the reset interrupt */
+void wcnss_reset_intr(void)
+{
+	wmb();
+	__raw_writel(1 << 24, MSM_APCS_GCC_BASE + 0x8);
+}
+EXPORT_SYMBOL(wcnss_reset_intr);
 
 static int wcnss_create_sysfs(struct device *dev)
 {
