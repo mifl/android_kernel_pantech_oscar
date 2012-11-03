@@ -11,6 +11,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
@@ -40,6 +41,14 @@
 static int has_48mhz_xo = WCNSS_CONFIG_UNSPECIFIED;
 module_param(has_48mhz_xo, int, S_IWUSR | S_IRUGO);
 MODULE_PARM_DESC(has_48mhz_xo, "Is an external 48 MHz XO present");
+
+static DEFINE_SPINLOCK(reg_spinlock);
+
+#define MSM_RIVA_PHYS			0x03204000
+
+#define RIVA_SPARE_OFFSET		0x0b4
+#define RIVA_SSR_BIT			BIT(23)
+#define RIVA_SUSPEND_BIT		BIT(24)
 
 #define WCNSS_CTRL_CHANNEL			"WCNSS_CTRL"
 #define WCNSS_MAX_FRAME_SIZE		500
@@ -86,6 +95,7 @@ static struct {
 	struct work_struct wcnssctrl_version_work;
 	struct work_struct wcnssctrl_rx_work;
 	struct wake_lock wcnss_wake_lock;
+	void __iomem *msm_wcnss_base;
 } *penv = NULL;
 
 static ssize_t wcnss_serial_number_show(struct device *dev,
@@ -449,21 +459,99 @@ unsigned int wcnss_get_serial_number(void)
 }
 EXPORT_SYMBOL(wcnss_get_serial_number);
 
+void wcnss_ssr_boot_notify(void)
+{
+	void __iomem *pmu_spare_reg;
+	u32 reg = 0;
+	unsigned long flags;
+
+	pmu_spare_reg = penv->msm_wcnss_base + RIVA_SPARE_OFFSET;
+
+	spin_lock_irqsave(&reg_spinlock, flags);
+	reg = readl_relaxed(pmu_spare_reg);
+	reg |= RIVA_SSR_BIT;
+	writel_relaxed(reg, pmu_spare_reg);
+	spin_unlock_irqrestore(&reg_spinlock, flags);
+}
+EXPORT_SYMBOL(wcnss_ssr_boot_notify);
+
+static int enable_wcnss_suspend_notify;
+
+static int enable_wcnss_suspend_notify_set(const char *val,
+				struct kernel_param *kp)
+{
+	int ret;
+
+	ret = param_set_int(val, kp);
+	if (ret)
+		return ret;
+
+	if (enable_wcnss_suspend_notify)
+		pr_info("Suspend notification activated for wcnss\n");
+
+	return 0;
+}
+module_param_call(enable_wcnss_suspend_notify, enable_wcnss_suspend_notify_set,
+		param_get_int, &enable_wcnss_suspend_notify, S_IRUGO | S_IWUSR);
+
+static void wcnss_suspend_notify(void)
+{
+	void __iomem *pmu_spare_reg;
+	u32 reg = 0;
+	unsigned long flags;
+
+	/* For Riva */
+	pmu_spare_reg = penv->msm_wcnss_base + RIVA_SPARE_OFFSET;
+
+	spin_lock_irqsave(&reg_spinlock, flags);
+	reg = readl_relaxed(pmu_spare_reg);
+	reg |= RIVA_SUSPEND_BIT;
+	writel_relaxed(reg, pmu_spare_reg);
+	spin_unlock_irqrestore(&reg_spinlock, flags);
+}
+
+static void wcnss_resume_notify(void)
+{
+	void __iomem *pmu_spare_reg;
+	u32 reg = 0;
+	unsigned long flags;
+
+	/* For Riva */
+	pmu_spare_reg = penv->msm_wcnss_base + RIVA_SPARE_OFFSET;
+	spin_lock_irqsave(&reg_spinlock, flags);
+	reg = readl_relaxed(pmu_spare_reg);
+	reg &= ~RIVA_SUSPEND_BIT;
+	writel_relaxed(reg, pmu_spare_reg);
+	spin_unlock_irqrestore(&reg_spinlock, flags);
+}
+
 static int wcnss_wlan_suspend(struct device *dev)
 {
+	int ret = 0;
+
 	if (penv && dev && (dev == &penv->pdev->dev) &&
 	    penv->smd_channel_ready &&
-	    penv->pm_ops && penv->pm_ops->suspend)
-		return penv->pm_ops->suspend(dev);
+	    penv->pm_ops && penv->pm_ops->suspend) {
+		ret = penv->pm_ops->suspend(dev);
+		if (ret == 0 && enable_wcnss_suspend_notify)
+			wcnss_suspend_notify();
+		return ret;
+	}
 	return 0;
 }
 
 static int wcnss_wlan_resume(struct device *dev)
 {
+	int ret = 0;
+
 	if (penv && dev && (dev == &penv->pdev->dev) &&
 	    penv->smd_channel_ready &&
-	    penv->pm_ops && penv->pm_ops->resume)
-		return penv->pm_ops->resume(dev);
+	    penv->pm_ops && penv->pm_ops->resume) {
+		ret = penv->pm_ops->resume(dev);
+		if (ret == 0 && enable_wcnss_suspend_notify)
+			wcnss_resume_notify();
+		return ret;
+	}
 	return 0;
 }
 
@@ -625,12 +713,22 @@ wcnss_trigger_config(struct platform_device *pdev)
 		ret = -ENOENT;
 		goto fail_res;
 	}
+
 	INIT_WORK(&penv->wcnssctrl_rx_work, wcnssctrl_rx_handler);
 	INIT_WORK(&penv->wcnssctrl_version_work, wcnss_send_version_req);
 
 	wake_lock_init(&penv->wcnss_wake_lock, WAKE_LOCK_SUSPEND, "wcnss");
 
+	penv->msm_wcnss_base = ioremap(MSM_RIVA_PHYS, SZ_256);
+	if (!penv->msm_wcnss_base) {
+		pr_err("%s: ioremap wcnss physical failed\n", __func__);
+		goto fail_wake;
+	}
+
 	return 0;
+
+fail_wake:
+	wake_lock_destroy(&penv->wcnss_wake_lock);
 
 fail_res:
 	if (penv->pil)
