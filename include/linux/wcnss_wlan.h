@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -53,6 +53,7 @@ void wcnss_allow_suspend(void);
 void wcnss_prevent_suspend(void);
 void wcnss_ssr_boot_notify(void);
 void wcnss_reset_intr(void);
+int wcnss_cold_boot_done(void);
 void *wcnss_prealloc_get(unsigned int size);
 int wcnss_prealloc_put(void *ptr);
 
