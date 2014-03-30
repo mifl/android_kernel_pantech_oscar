@@ -1,3 +1,7 @@
+#ifdef CONFIG_MSM8X60_CAMERA
+#include <media/msm8x60_gemini.h>
+#else /* CONFIG_MSM8X60_CAMERA */
+
 #ifndef __LINUX_MSM_GEMINI_H
 #define __LINUX_MSM_GEMINI_H
 
@@ -112,3 +116,5 @@ struct msm_gemini_hw_cmds {
 };
 
 #endif /* __LINUX_MSM_GEMINI_H */
+
+#endif /* CONFIG_MSM8X60_CAMERA */
