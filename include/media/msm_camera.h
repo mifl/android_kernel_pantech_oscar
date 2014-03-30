@@ -10,6 +10,11 @@
  * GNU General Public License for more details.
  *
  */
+
+#ifdef CONFIG_MSM8X60_CAMERA
+#include <linux/media/msm8x60_camera.h>
+#else /* CONFIG_MSM8X60_CAMERA */
+
 #ifndef __LINUX_MSM_CAMERA_H
 #define __LINUX_MSM_CAMERA_H
 
@@ -2264,3 +2269,5 @@ struct msm_ver_num_info {
 	(handle |= (0x1 << 7) | (data & 0x7F))
 
 #endif /* __LINUX_MSM_CAMERA_H */
+
+#endif /* CONFIG_MSM8X60_CAMERA */

@@ -1195,8 +1195,21 @@ config MSM_CAMERA_DEBUG
 	help
 	  Enable printk() debug for msm camera
 
+menuconfig MSM8X60_CAMERA
+	bool "Qualcomm MSM8X60 camera and video capture support"
+	depends on ARCH_MSM && VIDEO_V4L2 && I2C
+	default n
+	help
+	  Say Y here to enable selecting the video adapters for
+	  Qualcomm msm camera and video encoding
 
+if MSM8X60_CAMERA
+source "drivers/media/video/msm8x60/Kconfig"
+endif # MSM8X60_CAMERA
+
+if !MSM8X60_CAMERA
 source "drivers/media/video/msm/Kconfig"
+endif # MSM8X60_CAMERA
 
 endif # V4L_PLATFORM_DRIVERS
 endif # VIDEO_CAPTURE_DRIVERS
