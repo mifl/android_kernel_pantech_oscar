@@ -28,18 +28,18 @@ make -j4 O=./obj/KERNEL_OBJ 2>&1 | tee $CMD_V_LOG_FILE
 ##############################################################################
 if [ -f ./obj/KERNEL_OBJ/arch/arm/boot/zImage ]
 then
-    cp -f ./obj/KERNEL_OBJ/arch/arm/boot/zImage ./mkbootimg
+    cp -f ./obj/KERNEL_OBJ/arch/arm/boot/zImage ./mkbootimg/oscar
 fi
 
 if [ -f ./arch/arm/boot/zImage ]
 then
-    cp -f ./arch/arm/boot/zImage ./mkbootimg
+    cp -f ./arch/arm/boot/zImage ./mkbootimg/oscar
 fi
 
 ##############################################################################
 # Make BootImage
 ##############################################################################
-pushd ./mkbootimg > /dev/null
+pushd ./mkbootimg/oscar > /dev/null
 ./makebootimg.sh
 popd > /dev/null
 

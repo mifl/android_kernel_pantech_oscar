@@ -9,14 +9,14 @@
 make O=./obj/KERNEL_OBJ/ clean
 
 make O=./obj/KERNEL_OBJ/ clean
-if [ -f ./mkbootimg/boot.img ]
+if [ -f ./mkbootimg/oscar/boot.img ]
 then
-    rm ./mkbootimg/boot.img
+    rm ./mkbootimg/oscar/boot.img
 fi
 
-if [ -f ./mkbootimg/zImage ]
+if [ -f ./mkbootimg/oscar/zImage ]
 then
-    rm ./mkbootimg/zImage
+    rm ./mkbootimg/oscar/zImage
 fi
 
 if [ -d ./obj/ ]
