@@ -51,6 +51,10 @@
 #define PPSS_TIMER0_32KHZ_REG	0x1004
 #define PPSS_TIMER0_20MHZ_REG	0x0804
 
+#ifdef FEATURE_PANTECH_WLAN_QCOM_PATCH
+#define MODULE_NAME			"dsps_8960"
+#endif
+
 /**
  *  Driver Context
  *
@@ -735,7 +739,12 @@ static void dsps_restart_handler(void)
 		pr_err("%s: DSPS already resetting. Count %d\n", __func__,
 		       atomic_read(&drv->crash_in_progress));
 	} else {
+#if defined(FEATURE_PANTECH_WLAN_QCOM_PATCH)
+		//lee.eunsuk 20120423, SSR
+		panic(MODULE_NAME "DSPS crashed.");
+#else
 		subsystem_restart("dsps");
+#endif
 	}
 }
 

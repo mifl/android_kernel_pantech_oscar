@@ -17,7 +17,11 @@
 #include <linux/uaccess.h>
 #include <linux/module.h>
 #include <linux/fs.h>
+#ifdef CONFIG_PANTECH_ERR_CRASH_LOGGING
 #include <linux/proc_fs.h>
+#else /* QCOM Original */
+#include <linux/proc_fs.h>
+#endif /* CONFIG_PANTECH_ERR_CRASH_LOGGING */
 #include <linux/delay.h>
 #include <linux/list.h>
 #include <linux/io.h>
@@ -35,6 +39,14 @@
 #include <mach/subsystem_restart.h>
 
 #include "smd_private.h"
+
+#ifdef CONFIG_PANTECH_ERR_CRASH_LOGGING
+#include "sky_sys_reset.h"
+#endif /* CONFIG_PANTECH_ERR_CRASH_LOGGING */
+
+#ifdef CONFIG_PANTECH_ERR_CRASH_LOGGING
+extern int sky_reset_reason;
+#endif /* CONFIG_PANTECH_ERR_CRASH_LOGGING */
 
 struct subsys_soc_restart_order {
 	const char * const *subsystem_list;
@@ -477,6 +489,18 @@ int subsystem_restart(const char *subsys_name)
 		pr_warn("Unregistered subsystem %s!\n", subsys_name);
 		return -EINVAL;
 	}
+
+#ifdef CONFIG_PANTECH_ERR_CRASH_LOGGING
+	if (!strncmp(subsys_name, "lpass", 5)) {
+		sky_reset_reason=SYS_RESET_REASON_LPASS;
+	} else if (!strncmp(subsys_name, "modem", 5)) {
+		sky_reset_reason=SYS_RESET_REASON_EXCEPTION;
+	} else if (!strncmp(subsys_name, "dsps", 4)) {
+		sky_reset_reason=SYS_RESET_REASON_DSPS;
+	} else if ((!strncmp(subsys_name, "riva", 4)) || (!strncmp(subsys_name, "wcnss", 5))) {
+		sky_reset_reason=SYS_RESET_REASON_RIVA;
+	}
+#endif /* CONFIG_PANTECH_ERR_CRASH_LOGGING */
 
 	switch (restart_level) {
 

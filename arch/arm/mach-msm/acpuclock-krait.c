@@ -38,6 +38,10 @@
 #include "acpuclock-krait.h"
 #include "avs.h"
 
+#if defined(CONFIG_PANTECH_PMIC)
+#include <mach/msm_smsm.h>
+#endif
+
 /* MUX source selects. */
 #define PRI_SRC_SEL_SEC_SRC	0
 #define PRI_SRC_SEL_HFPLL	1
@@ -728,6 +732,27 @@ static bool __cpuinit speed_equal(const struct core_speed *s1,
 		s1->pll_l_val == s2->pll_l_val);
 }
 
+#if defined(CONFIG_PANTECH_PMIC)
+static oem_pm_smem_vendor1_data_type *smem_vendor1_ptr = NULL;
+
+static int oem_smem_boot_mode_read(void)
+{
+    if (!smem_vendor1_ptr)
+        return 1;
+
+    return smem_vendor1_ptr->power_on_mode;
+}
+
+static int oem_vendor_smem_init(void)
+{
+    int len = 0;
+
+    smem_vendor1_ptr = (oem_pm_smem_vendor1_data_type*)smem_alloc(SMEM_ID_VENDOR1, sizeof(oem_pm_smem_vendor1_data_type));
+
+    return len;
+}
+#endif
+
 static const struct acpu_level __cpuinit *find_cur_acpu_level(int cpu)
 {
 	struct scalable *sc = &drv.scalable[cpu];
@@ -735,9 +760,21 @@ static const struct acpu_level __cpuinit *find_cur_acpu_level(int cpu)
 	struct core_speed cur_speed;
 
 	fill_cur_core_speed(&cur_speed, sc);
+#if defined(CONFIG_PANTECH_PMIC)
+    for (l = drv.acpu_freq_tbl; l->speed.khz != 0; l++){
+        if (oem_smem_boot_mode_read()){
+            if (speed_equal(&l->speed, &cur_speed))
+                return l;
+        }
+        else{
+            return NULL;
+        }
+    }
+#else
 	for (l = drv.acpu_freq_tbl; l->speed.khz != 0; l++)
 		if (speed_equal(&l->speed, &cur_speed))
 			return l;
+#endif
 	return NULL;
 }
 
@@ -791,6 +828,11 @@ static int __cpuinit per_cpu_init(int cpu)
 			acpu_level->speed.khz);
 	}
 
+#if defined(CONFIG_PANTECH_PMIC)
+    dev_err(drv.dev, "CPU%d is running at %lu KHz\n", cpu,
+        acpu_level->speed.khz);
+#endif
+
 	ret = regulator_init(sc, acpu_level);
 	if (ret)
 		goto err_regulators;
@@ -840,6 +882,21 @@ static void __init cpufreq_table_init(void)
 	for_each_possible_cpu(cpu) {
 		int i, freq_cnt = 0;
 		/* Construct the freq_table tables from acpu_freq_tbl. */
+#if defined(CONFIG_PANTECH_PMIC)
+        int chargerfreq;
+        for (i = 0; drv.acpu_freq_tbl[i].speed.khz != 0
+                && freq_cnt < ARRAY_SIZE(*freq_table); i++) {
+            chargerfreq = 0;
+            if (oem_smem_boot_mode_read() || drv.acpu_freq_tbl[i].speed.khz <= 384000)
+                chargerfreq = 1;
+            if (drv.acpu_freq_tbl[i].use_for_scaling && chargerfreq) {
+                    freq_table[cpu][freq_cnt].index = freq_cnt;
+                    freq_table[cpu][freq_cnt].frequency
+                        = drv.acpu_freq_tbl[i].speed.khz;
+                    freq_cnt++;
+                }
+        }
+#else
 		for (i = 0; drv.acpu_freq_tbl[i].speed.khz != 0
 				&& freq_cnt < ARRAY_SIZE(*freq_table); i++) {
 			if (drv.acpu_freq_tbl[i].use_for_scaling) {
@@ -849,6 +906,7 @@ static void __init cpufreq_table_init(void)
 				freq_cnt++;
 			}
 		}
+#endif
 		/* freq_table not big enough to store all usable freqs. */
 		BUG_ON(drv.acpu_freq_tbl[i].speed.khz != 0);
 
@@ -1057,6 +1115,10 @@ static void __init hw_init(void)
 int __init acpuclk_krait_init(struct device *dev,
 			      const struct acpuclk_krait_params *params)
 {
+#if defined(CONFIG_PANTECH_PMIC)
+    oem_vendor_smem_init();
+#endif
+
 	drv_data_init(dev, params);
 	hw_init();
 
