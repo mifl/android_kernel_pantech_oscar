@@ -4,8 +4,7 @@
 #                           Kernel Build Script 
 #
 ###############################################################################
-# 2011-10-24 effectivesky : modified
-# 2010-12-29 allydrop     : created
+# 2013-01-14    P12104  :   created
 ###############################################################################
 ##############################################################################
 # set toolchain
@@ -21,11 +20,26 @@ rm -rf $CMD_V_LOG_FILE
 # make zImage
 ##############################################################################
 mkdir -p ./obj/KERNEL_OBJ/
-make O=./obj/KERNEL_OBJ msm8960-perf_defconfig
+make O=./obj/KERNEL_OBJ cyanogen_oscar_defconfig
 make -j4 O=./obj/KERNEL_OBJ 2>&1 | tee $CMD_V_LOG_FILE
 
 ##############################################################################
 # Copy Kernel Image
 ##############################################################################
-cp -f ./obj/KERNEL_OBJ/arch/arm/boot/zImage .
+if [ -f ./obj/KERNEL_OBJ/arch/arm/boot/zImage ]
+then
+    cp -f ./obj/KERNEL_OBJ/arch/arm/boot/zImage ./mkbootimg
+fi
+
+if [ -f ./arch/arm/boot/zImage ]
+then
+    cp -f ./arch/arm/boot/zImage ./mkbootimg
+fi
+
+##############################################################################
+# Make BootImage
+##############################################################################
+pushd ./mkbootimg > /dev/null
+./makebootimg.sh
+popd > /dev/null
 

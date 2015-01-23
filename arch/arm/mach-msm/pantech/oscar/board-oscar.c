@@ -140,7 +140,11 @@ struct sx150x_platform_data msm8960_sx150x_data[] = {
 
 #define MSM_PMEM_ADSP_SIZE         0x7800000
 #define MSM_PMEM_AUDIO_SIZE        0x4CF000
+#if defined(CONFIG_MACH_MSM8960_OSCAR)
+#define MSM_PMEM_SIZE 0x4600000 /* 70 Mbytes */
+#else
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
+#endif
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
 #define MSM_HDMI_PRIM_PMEM_SIZE 0x4000000 /* 64 Mbytes */
 
@@ -833,6 +837,27 @@ static void __init msm8960_reserve(void)
 	}
 }
 
+#if 0//def CONFIG_ANDROID_RAM_CONSOLE
+#define ANDROID_RAM_CONSOLE_START 0x88A00000
+#define ANDROID_RAM_CONSOLE_SIZE 0x00100000
+
+static struct platform_device ram_console_device = {
+    .name = "ram_console",
+    .id = -1,
+};
+struct persistent_ram_descriptor ram_console_desc = {
+    .name = "ram_console",
+    .size = ANDROID_RAM_CONSOLE_SIZE,
+};
+
+struct persistent_ram ram_console_ram = {
+    .start =  ANDROID_RAM_CONSOLE_START,
+    .size = ANDROID_RAM_CONSOLE_SIZE,
+    .num_descs = 1,
+    .descs = &ram_console_desc,
+};
+#endif /* CONFIG_ANDROID_RAM_CONSOLE */
+
 static int msm8960_change_memory_power(u64 start, u64 size,
 	int change_type)
 {
@@ -1460,10 +1485,13 @@ static void __init msm8960_init_buses(void)
 #endif
 }
 
+#if defined(CONFIG_PANTECH_CAMERA_FLASH) || defined(CONFIG_PANTECH_PMIC_MAX17058)
+#else
 static struct msm_spi_platform_data msm8960_qup_spi_gsbi1_pdata = {
 	.max_clock_speed = 15060000,
 	.infinite_mode	 = 0xFFC0,
 };
+#endif
 
 #ifdef CONFIG_USB_MSM_OTG_72K
 static struct msm_otg_platform_data msm_otg_pdata;
@@ -1483,6 +1511,15 @@ static int liquid_v1_phy_init_seq[] = {
 	0x18, 0x82,/* set preemphasis and rise/fall time */
 	0x23, 0x83,/* set source impedance sdjusment */
 	-1};
+#if defined(FEATURE_HSUSB_SET_SIGNALING_PARAM)
+static int pantech_phy_init_seq[] = {
+    0x44, 0x80,/* set VBUS valid threshold
+            and disconnect valid threshold */
+    0x3D, 0x81,/* update DC voltage level */
+    0x24, 0x82,/* set preemphasis and rise/fall time */
+    0x33, 0x83,/* set source impedance sdjusment */
+    -1};
+#endif
 
 #ifdef CONFIG_MSM_BUS_SCALING
 /* Bandwidth requests (zero) if no vote placed */
@@ -1523,13 +1560,57 @@ static struct msm_bus_scale_pdata usb_bus_scale_pdata = {
 };
 #endif
 
+#ifdef FEATURE_ANDROID_PANTECH_USB_OTG_MODE
+static int pantech_control_usb_switch(int pm_gpio, int value)
+{
+    static int gpio;
+    int rc;
+
+    printk(KERN_ERR "%s: pm_gpio[%d], value[%d]\n", __func__, pm_gpio, value);
+
+    gpio = PM8921_GPIO_PM_TO_SYS(pm_gpio);
+    if(pm_gpio == 36){
+        rc = gpio_request(gpio, "msm_usb_id_sw");
+        if(rc){
+                pr_err("request gpio 36 failed, rc=%d\n", rc);
+                return -ENODEV;
+        }
+    }else if(pm_gpio == 44){
+        rc = gpio_request(gpio, "pmic_usb_id_sw");
+        if(rc){
+                pr_err("request gpio  failed, rc=%d\n", rc);
+                return -ENODEV;
+        }
+    }
+
+    if(value){
+        gpio_set_value_cansleep(gpio, 1);
+    }else{
+        gpio_set_value_cansleep(gpio, 0);
+    }
+
+    gpio_free(gpio);
+    return 0;
+}
+#endif /* FEATURE_ANDROID_PANTECH_USB_OTG_MODE */
+
 #define MSM_MPM_PIN_USB1_OTGSESSVLD	40
 
 static struct msm_otg_platform_data msm_otg_pdata = {
+/* ONLY Domestic Model is USB_OTG mode setting*/
+#ifdef FEATURE_ANDROID_PANTECH_USB_OTG_MODE
 	.mode			= USB_OTG,
+#else
+	.mode			= USB_PERIPHERAL,
+#endif
 	.otg_control		= OTG_PMIC_CONTROL,
 	.phy_type		= SNPS_28NM_INTEGRATED_PHY,
+#ifdef FEATURE_ANDROID_PANTECH_USB_OTG_MODE
+	.control_usb_switch = pantech_control_usb_switch,
+	.pmic_id_irq		= PM8921_GPIO_IRQ(PM8921_IRQ_BASE, 25),
+#else
 	.pmic_id_irq		= PM8921_USB_ID_IN_IRQ(PM8921_IRQ_BASE),
+#endif
 	.power_budget		= 750,
 #ifdef CONFIG_MSM_BUS_SCALING
 	.bus_scale_table	= &usb_bus_scale_pdata,
@@ -1897,6 +1978,7 @@ static struct i2c_board_info msm_isa1200_board_info[] __initdata = {
 	},
 };
 
+#ifdef CONFIG_TOUCHSCREEN_CYTTSP_I2C
 #define CYTTSP_TS_GPIO_IRQ		11
 #define CYTTSP_TS_SLEEP_GPIO		50
 #define CYTTSP_TS_RESOUT_N_GPIO		52
@@ -2018,7 +2100,25 @@ static struct i2c_board_info cyttsp_info[] __initdata = {
 #endif /* CY_USE_TIMER */
 	},
 };
+#endif /* CONFIG_TOUCHSCREEN_CYTTSP_I2C */
 
+#ifdef CONFIG_TOUCHSCREEN_QT602240_MSM8960 //p13106
+static struct i2c_board_info qt602240_i2c_boardinfo[] __initdata = {
+    {
+        I2C_BOARD_INFO("qt602240-i2c", 0x4A),
+    },
+};
+#endif
+
+#if defined(CONFIG_PANTECH_PMIC_MAX17058)
+static struct i2c_board_info max17058_i2c_boardinfo[] __initdata = {
+    {
+        I2C_BOARD_INFO("max17058-i2c", 0x36),
+    },
+};
+#endif
+
+#ifndef CONFIG_PANTECH
 /* configuration data for mxt1386 */
 static const u8 mxt1386_config_data[] = {
 	/* T6 Object */
@@ -2356,6 +2456,7 @@ static struct i2c_board_info mxt_device_info[] __initdata = {
 		.irq = MSM_GPIO_TO_INT(MXT_TS_GPIO_IRQ),
 	},
 };
+#endif /* CONFIG_PANTECH */
 
 static struct msm_mhl_platform_data mhl_platform_data = {
 	.irq = MSM_GPIO_TO_INT(4),
@@ -2383,13 +2484,35 @@ static struct i2c_board_info sii_device_info[] __initdata = {
 	},
 };
 
+#ifdef CONFIG_PANTECH_CAMERA_FLASH
+static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi1_pdata = {
+    .clk_freq = 384000,
+    .src_clk_rate = 24000000,
+};
+#endif
+
+#if defined(CONFIG_OV8820_ACT)
+static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi2_pdata = {
+    .clk_freq = 384000,
+    .src_clk_rate = 24000000,
+};
+#endif
+
 static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi4_pdata = {
+#ifdef CONFIG_PANTECH_CAMERA
+    .clk_freq = 384000,
+#else	
 	.clk_freq = 100000,
+#endif
 	.src_clk_rate = 24000000,
 };
 
 static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi3_pdata = {
+#ifdef CONFIG_TOUCHSCREEN_QT602240_MSM8960
+    .clk_freq = 384000,
+#else
 	.clk_freq = 100000,
+#endif
 	.src_clk_rate = 24000000,
 };
 
@@ -2403,12 +2526,21 @@ static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi12_pdata = {
 	.src_clk_rate = 24000000,
 };
 
+#if defined(CONFIG_PANTECH_PMIC_MAX17058)
+static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi9_pdata = {
+    .clk_freq = 100000,
+    .src_clk_rate = 24000000,
+};
+#endif
+
 static struct msm_pm_sleep_status_data msm_pm_slp_sts_data = {
 	.base_addr = MSM_ACC0_BASE + 0x08,
 	.cpu_offset = MSM_ACC1_BASE - MSM_ACC0_BASE,
 	.mask = 1UL << 13,
 };
 
+#if defined(CONFIG_PANTECH_CAMERA_FLASH) || defined(CONFIG_PANTECH_PMIC_MAX17058)
+#else
 static struct ks8851_pdata spi_eth_pdata = {
 	.irq_gpio = KS8851_IRQ_GPIO,
 	.rst_gpio = KS8851_RST_GPIO,
@@ -2432,6 +2564,7 @@ static struct spi_board_info spi_board_info[] __initdata = {
 		.mode                   = SPI_MODE_0,
 	},
 };
+#endif /* CONFIG_PANTECH_CAMERA_FLASH || CONFIG_PANTECH_PMIC_MAX17058 */
 
 static struct platform_device msm_device_saw_core0 = {
 	.name          = "saw-regulator",
@@ -2550,6 +2683,9 @@ static struct msm_serial_hs_platform_data msm_uart_dm9_pdata;
 
 static struct platform_device *common_devices[] __initdata = {
 	&msm8960_device_acpuclk,
+#if 0//def CONFIG_ANDROID_RAM_CONSOLE
+    &ram_console_device,
+#endif
 	&msm8960_device_dmov,
 	&msm_device_smd,
 	&msm_device_uart_dm6,
@@ -2559,9 +2695,23 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm8960_device_ext_5v_vreg,
 	&msm8960_device_ssbi_pmic,
 	&msm8960_device_ext_otg_sw_vreg,
+#ifdef CONFIG_PANTECH_CAMERA_FLASH
+    &msm8960_device_qup_i2c_gsbi1,
+#else
+#if defined(CONFIG_PANTECH_PMIC_MAX17058)
+    &msm8960_device_qup_spi_gsbi1,
+#else
 	&msm8960_device_qup_spi_gsbi1,
+#endif /* CONFIG_PANTECH_PMIC_MAX17058 */
+#endif /* CONFIG_PANTECH_CAMERA_FLASH */
+#if defined(CONFIG_OV8820_ACT)
+    &msm8960_device_qup_i2c_gsbi2,
+#endif
 	&msm8960_device_qup_i2c_gsbi3,
 	&msm8960_device_qup_i2c_gsbi4,
+#if defined(CONFIG_PANTECH_PMIC_MAX17058)
+    &msm8960_device_qup_i2c_gsbi9,
+#endif
 	&msm8960_device_qup_i2c_gsbi10,
 #ifndef CONFIG_MSM_DSPS
 	&msm8960_device_qup_i2c_gsbi12,
@@ -2759,6 +2909,16 @@ static struct platform_device *cdp_devices[] __initdata = {
 
 static void __init msm8960_i2c_init(void)
 {
+#ifdef CONFIG_PANTECH_CAMERA_FLASH
+    msm8960_device_qup_i2c_gsbi1.dev.platform_data =
+                    &msm8960_i2c_qup_gsbi1_pdata;
+#endif
+
+#if defined(CONFIG_OV8820_ACT)
+    msm8960_device_qup_i2c_gsbi2.dev.platform_data =
+                    &msm8960_i2c_qup_gsbi2_pdata;
+#endif
+
 	if (socinfo_get_platform_subtype() == PLATFORM_SUBTYPE_SGLTE)
 		msm8960_i2c_qup_gsbi4_pdata.keep_ahb_clk_on = 1;
 
@@ -2773,6 +2933,13 @@ static void __init msm8960_i2c_init(void)
 
 	msm8960_device_qup_i2c_gsbi12.dev.platform_data =
 					&msm8960_i2c_qup_gsbi12_pdata;
+
+#if defined(CONFIG_PANTECH_PMIC_MAX17058)
+#if defined(T_OSCAR)
+    msm8960_device_qup_i2c_gsbi9.dev.platform_data =
+                    &msm8960_i2c_qup_gsbi9_pdata;
+#endif
+#endif
 }
 
 static void __init msm8960_gfx_init(void)
@@ -3003,18 +3170,38 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 		ARRAY_SIZE(isl_charger_i2c_info),
 	},
 #endif /* CONFIG_ISL9519_CHARGER */
+#ifdef CONFIG_TOUCHSCREEN_CYTTSP_I2C
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID,
 		MSM_8960_GSBI3_QUP_I2C_BUS_ID,
 		cyttsp_info,
 		ARRAY_SIZE(cyttsp_info),
 	},
+#endif
+#ifdef CONFIG_TOUCHSCREEN_QT602240_MSM8960
+    {
+        I2C_SURF | I2C_FFA | I2C_FLUID,
+        MSM_8960_GSBI3_QUP_I2C_BUS_ID,
+        qt602240_i2c_boardinfo,
+        ARRAY_SIZE(qt602240_i2c_boardinfo),
+    },
+#endif
+#if defined(CONFIG_PANTECH_PMIC_MAX17058)
+    {
+        I2C_SURF | I2C_FFA | I2C_FLUID,
+        MSM_8960_GSBI9_QUP_I2C_BUS_ID,
+        max17058_i2c_boardinfo,
+        ARRAY_SIZE(max17058_i2c_boardinfo),
+    },
+#endif
+#ifndef CONFIG_PANTECH
 	{
 		I2C_LIQUID,
 		MSM_8960_GSBI3_QUP_I2C_BUS_ID,
 		mxt_device_info,
 		ARRAY_SIZE(mxt_device_info),
 	},
+#endif
 	{
 		I2C_SURF | I2C_FFA | I2C_LIQUID,
 		MSM_8960_GSBI10_QUP_I2C_BUS_ID,
@@ -3051,7 +3238,7 @@ static void __init register_i2c_devices(void)
 #endif
 
 	/* Build the matching 'supported_machs' bitmask */
-	if (machine_is_msm8960_cdp())
+	if (machine_is_msm8960_cdp() || machine_is_msm8960_oscar())
 		mach_mask = I2C_SURF;
 	else if (machine_is_msm8960_rumi3())
 		mach_mask = I2C_RUMI;
@@ -3065,7 +3252,7 @@ static void __init register_i2c_devices(void)
 		mach_mask = I2C_FFA;
 	else
 		pr_err("unmatched machine ID in register_i2c_devices\n");
-
+#ifndef CONFIG_PANTECH
 	if (machine_is_msm8960_liquid()) {
 		if (SOCINFO_VERSION_MAJOR(socinfo_get_platform_version()) == 3)
 			mxt_device_info[0].platform_data =
@@ -3074,7 +3261,7 @@ static void __init register_i2c_devices(void)
 			mxt_device_info[0].platform_data =
 						&mxt_platform_data_2d;
 	}
-
+#endif /* CONFIG_PANTECH */
 	/* Run the array and install devices as appropriate */
 	for (i = 0; i < ARRAY_SIZE(msm8960_i2c_devices); ++i) {
 		if (msm8960_i2c_devices[i].machs & mach_mask)
@@ -3120,9 +3307,12 @@ static void __init msm8960_sim_init(void)
 	msm8960_pm8921_gpio_mpp_init();
 	platform_add_devices(sim_devices, ARRAY_SIZE(sim_devices));
 
+#if defined(CONFIG_PANTECH_CAMERA_FLASH) || defined(CONFIG_PANTECH_PMIC_MAX17058)
+#else
 	msm8960_device_qup_spi_gsbi1.dev.platform_data =
 				&msm8960_qup_spi_gsbi1_pdata;
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
+#endif
 
 	msm8960_init_mmc();
 	msm8960_init_fb();
@@ -3142,9 +3332,12 @@ static void __init msm8960_rumi3_init(void)
 	platform_device_register(&msm8960_device_rpm_regulator);
 	msm8960_init_gpiomux();
 	msm8960_init_pmic();
+#if defined(CONFIG_PANTECH_CAMERA_FLASH) || defined(CONFIG_PANTECH_PMIC_MAX17058)
+#else
 	msm8960_device_qup_spi_gsbi1.dev.platform_data =
 				&msm8960_qup_spi_gsbi1_pdata;
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
+#endif
 	msm8960_i2c_init();
 	msm_spm_init(msm_spm_data, ARRAY_SIZE(msm_spm_data));
 	msm_spm_l2_init(msm_spm_l2_data);
@@ -3187,6 +3380,9 @@ static void __init msm8960_cdp_init(void)
 			msm_otg_pdata.phy_init_seq =
 				liquid_v1_phy_init_seq;
 	}
+#if defined(FEATURE_HSUSB_SET_SIGNALING_PARAM)
+	msm_otg_pdata.phy_init_seq = pantech_phy_init_seq;
+#endif
 	android_usb_pdata.swfi_latency =
 		msm_rpmrs_levels[0].latency_us;
 	msm_device_hsic_host.dev.platform_data = &msm_hsic_pdata;
@@ -3194,9 +3390,12 @@ static void __init msm8960_cdp_init(void)
 					machine_is_msm8960_liquid())
 		msm_device_hsic_host.dev.parent = &smsc_hub_device.dev;
 	msm8960_init_gpiomux();
+#if defined(CONFIG_PANTECH_CAMERA_FLASH) || defined(CONFIG_PANTECH_PMIC_MAX17058)
+#else
 	msm8960_device_qup_spi_gsbi1.dev.platform_data =
 				&msm8960_qup_spi_gsbi1_pdata;
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
+#endif
 
 	msm8960_init_pmic();
 	if ((SOCINFO_VERSION_MAJOR(socinfo_get_version()) >= 2 &&
@@ -3230,11 +3429,17 @@ static void __init msm8960_cdp_init(void)
 	msm8960_init_smsc_hub();
 	msm8960_init_hsic();
 #ifdef CONFIG_MSM_CAMERA
+#ifdef CONFIG_PANTECH_CAMERA_FLASH
+//    i2c_register_board_info(MSM_8960_GSBI1_QUP_I2C_BUS_ID, msm_i2c_camera_flash_device,
+//             ARRAY_SIZE(msm_i2c_camera_flash_device));
+#endif  
 	msm8960_init_cam();
 #endif
 	msm8960_init_mmc();
+#ifndef CONFIG_PANTECH
 	if (machine_is_msm8960_liquid())
 		mxt_init_hw_liquid();
+#endif
 	register_i2c_devices();
 	msm8960_init_fb();
 	slim_register_board_info(msm_slim_devices,
@@ -3320,4 +3525,16 @@ MACHINE_START(MSM8960_LIQUID, "QCT MSM8960 LIQUID")
 	.init_early = msm8960_allocate_memory_regions,
 	.init_very_early = msm8960_early_memory,
 	.restart = msm_restart,
+MACHINE_END
+
+MACHINE_START(MSM8960_OSCAR, "QCT MSM8960 OSCAR")
+    .map_io = msm8960_map_io,
+    .reserve = msm8960_reserve,
+    .init_irq = msm8960_init_irq,
+    .handle_irq = gic_handle_irq,
+    .timer = &msm_timer,
+    .init_machine = msm8960_cdp_init,
+    .init_early = msm8960_allocate_memory_regions,
+    .init_very_early = msm8960_early_memory,
+    .restart = msm_restart,
 MACHINE_END
