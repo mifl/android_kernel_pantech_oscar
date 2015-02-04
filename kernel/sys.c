@@ -387,15 +387,30 @@ static void migrate_to_reboot_cpu(void)
  *	Shutdown everything and perform a clean reboot.
  *	This is not safe to call in interrupt context.
  */
+#ifdef CONFIG_MACH_MSM8960_OSCAR
+extern void oscar_lcd_poweroff(void);
+#endif
 void kernel_restart(char *cmd)
 {
 	kernel_restart_prepare(cmd);
 	migrate_to_reboot_cpu();
 	syscore_shutdown();
+#ifdef CONFIG_MACH_MSM8960_OSCAR
+	if (!cmd) {
+		printk(KERN_EMERG "Restarting system.\n");
+		oscar_lcd_poweroff();
+	} else {
+		printk(KERN_EMERG "Restarting system with command '%s'.\n", cmd);
+		if(strcmp(cmd,"recovery") == 0){
+			oscar_lcd_poweroff();
+		}
+	}
+#else /* QCOM Original */
 	if (!cmd)
 		printk(KERN_EMERG "Restarting system.\n");
 	else
 		printk(KERN_EMERG "Restarting system with command '%s'.\n", cmd);
+#endif
 	kmsg_dump(KMSG_DUMP_RESTART);
 	machine_restart(cmd);
 }
@@ -443,7 +458,9 @@ void kernel_power_off(void)
 	machine_power_off();
 }
 EXPORT_SYMBOL_GPL(kernel_power_off);
-
+#if defined(CONFIG_PANTECH_LCD_POWEROFFSEQ_ON_PHONEOFF) 
+extern void msm_fb_panel_power_off(void);
+#endif
 static DEFINE_MUTEX(reboot_mutex);
 
 /*
@@ -480,6 +497,9 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	ret = reboot_pid_ns(task_active_pid_ns(current), cmd);
 	if (ret)
 		return ret;
+#if defined(CONFIG_PANTECH_LCD_POWEROFFSEQ_ON_PHONEOFF) 
+	msm_fb_panel_power_off();
+#endif
 
 	/* Instead of trying to make the power_off code look like
 	 * halt when pm_power_off is not set do it the easy way.
