@@ -165,5 +165,4 @@
 			1 &msmgpio 62 0x3>;
 	interrupt-names = "core_irq", "status_irq";
 	cd-gpios = <&msmgpio 62 0x1>;
-	wp-gpios = <&pm8941_gpios 29 0x1>;
 };

@@ -152,9 +152,7 @@
 			};
 
 			gpio@dc00 {
-				qcom,pull = <0>; /* set to default pull */
-				qcom,master-en = <1>;
-				qcom,vin-sel = <2>; /* select 1.8 V source */
+				qcom,out-strength = <1>;
 				status = "ok";
 			};
 
