@@ -11,4 +11,4 @@
 # Copy Kernel Image
 ##############################################################################
 
-./mkbootimg --cmdline "console=ttyHSL0,115200,n8 androidboot.hardware=qcom androidboot.carrier=verizon user_debug=31 msm_rtb.filter=0x3F ehci-hcd.park=3" --base 0x80200000 --kernel zImage --ramdisk ramdisk.img -o boot.img
+./mkbootimg --cmdline "console=ttyHSL0,115200,n8 androidboot.hardware=qcom androidboot.carrier=ATT user_debug=31 msm_rtb.filter=0x3F ehci-hcd.park=3 maxcpus=2 loglevel=0" --base 0x80200000 --kernel zImage --ramdisk ramdisk.img -o boot.img
